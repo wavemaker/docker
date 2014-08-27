@@ -165,7 +165,7 @@ func (d *Driver) subvolumesDirId(id string) string {
 	return path.Join(d.subvolumesDir(), id)
 }
 
-func (d *Driver) Create(id string, parent string) error {
+func (d *Driver) Create(id, rw, parent string) error {
 	subvolumes := path.Join(d.home, "subvolumes")
 	if err := os.MkdirAll(subvolumes, 0700); err != nil {
 		return err
@@ -175,7 +175,7 @@ func (d *Driver) Create(id string, parent string) error {
 			return err
 		}
 	} else {
-		parentDir, err := d.Get(parent, "")
+		parentDir, err := d.Get(parent, "", "")
 		if err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func (d *Driver) Create(id string, parent string) error {
 	return nil
 }
 
-func (d *Driver) Remove(id string) error {
+func (d *Driver) Remove(id, rw string) error {
 	dir := d.subvolumesDirId(id)
 	if _, err := os.Stat(dir); err != nil {
 		return err
@@ -197,7 +197,7 @@ func (d *Driver) Remove(id string) error {
 	return os.RemoveAll(dir)
 }
 
-func (d *Driver) Get(id, mountLabel string) (string, error) {
+func (d *Driver) Get(id, rw, mountLabel string) (string, error) {
 	dir := d.subvolumesDirId(id)
 	st, err := os.Stat(dir)
 	if err != nil {

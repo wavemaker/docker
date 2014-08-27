@@ -109,7 +109,7 @@ func DriverTestCreateEmpty(t *testing.T, drivername string) {
 	driver := GetDriver(t, drivername)
 	defer PutDriver(t)
 
-	if err := driver.Create("empty", ""); err != nil {
+	if err := driver.Create("empty", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,7 +117,7 @@ func DriverTestCreateEmpty(t *testing.T, drivername string) {
 		t.Fatal("Newly created image doesn't exist")
 	}
 
-	dir, err := driver.Get("empty", "")
+	dir, err := driver.Get("empty", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func DriverTestCreateEmpty(t *testing.T, drivername string) {
 
 	driver.Put("empty")
 
-	if err := driver.Remove("empty"); err != nil {
+	if err := driver.Remove("empty",""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -147,11 +147,11 @@ func createBase(t *testing.T, driver graphdriver.Driver, name string) {
 	oldmask := syscall.Umask(0)
 	defer syscall.Umask(oldmask)
 
-	if err := driver.Create(name, ""); err != nil {
+	if err := driver.Create(name, "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	dir, err := driver.Get(name, "")
+	dir, err := driver.Get(name, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func createBase(t *testing.T, driver graphdriver.Driver, name string) {
 }
 
 func verifyBase(t *testing.T, driver graphdriver.Driver, name string) {
-	dir, err := driver.Get(name, "")
+	dir, err := driver.Get(name, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func DriverTestCreateBase(t *testing.T, drivername string) {
 	createBase(t, driver, "Base")
 	verifyBase(t, driver, "Base")
 
-	if err := driver.Remove("Base"); err != nil {
+	if err := driver.Remove("Base", ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -213,17 +213,17 @@ func DriverTestCreateSnap(t *testing.T, drivername string) {
 
 	createBase(t, driver, "Base")
 
-	if err := driver.Create("Snap", "Base"); err != nil {
+	if err := driver.Create("Snap", "", "Base"); err != nil {
 		t.Fatal(err)
 	}
 
 	verifyBase(t, driver, "Snap")
 
-	if err := driver.Remove("Snap"); err != nil {
+	if err := driver.Remove("Snap", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := driver.Remove("Base"); err != nil {
+	if err := driver.Remove("Base", ""); err != nil {
 		t.Fatal(err)
 	}
 }

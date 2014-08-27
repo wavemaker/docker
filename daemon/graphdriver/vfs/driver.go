@@ -59,7 +59,7 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
-func (d *Driver) Create(id, parent string) error {
+func (d *Driver) Create(id, rw, parent string) error {
 	dir := d.dir(id)
 	if err := os.MkdirAll(path.Dir(dir), 0700); err != nil {
 		return err
@@ -70,7 +70,7 @@ func (d *Driver) Create(id, parent string) error {
 	if parent == "" {
 		return nil
 	}
-	parentDir, err := d.Get(parent, "")
+	parentDir, err := d.Get(parent, "", "")
 	if err != nil {
 		return fmt.Errorf("%s: %s", parent, err)
 	}
@@ -84,14 +84,14 @@ func (d *Driver) dir(id string) string {
 	return path.Join(d.home, "dir", path.Base(id))
 }
 
-func (d *Driver) Remove(id string) error {
+func (d *Driver) Remove(id, rw string) error {
 	if _, err := os.Stat(d.dir(id)); err != nil {
 		return err
 	}
 	return os.RemoveAll(d.dir(id))
 }
 
-func (d *Driver) Get(id, mountLabel string) (string, error) {
+func (d *Driver) Get(id, rw, mountLabel string) (string, error) {
 	dir := d.dir(id)
 	if st, err := os.Stat(dir); err != nil {
 		return "", err

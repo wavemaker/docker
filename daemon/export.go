@@ -4,6 +4,8 @@ import (
 	"io"
 
 	"github.com/docker/docker/engine"
+	"github.com/docker/docker/archive"
+	"github.com/docker/docker/pkg/log"
 )
 
 func (daemon *Daemon) ContainerExport(job *engine.Job) engine.Status {
@@ -11,8 +13,21 @@ func (daemon *Daemon) ContainerExport(job *engine.Job) engine.Status {
 		return job.Errorf("Usage: %s container_id", job.Name)
 	}
 	name := job.Args[0]
+	readwrite := job.GetenvBool("readwrite")
+	log.Debugf("the boolean readwrite is %t ", readwrite)
 	if container := daemon.Get(name); container != nil {
-		data, err := container.Export()
+        var (
+            data archive.Archive
+            err error
+        )
+
+	    if readwrite {
+	        log.Debugf("Exporting only the rw directory ")
+	        data, err = container.ExportRw()
+	    } else {
+	        log.Debugf("Exporting Entire rootfs/basefs of container ")
+		    data, err = container.Export()
+		}
 		if err != nil {
 			return job.Errorf("%s: %s", name, err)
 		}

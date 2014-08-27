@@ -75,7 +75,7 @@ func (d *Driver) Cleanup() error {
 	return err
 }
 
-func (d *Driver) Create(id, parent string) error {
+func (d *Driver) Create(id, rw, parent string) error {
 	if err := d.DeviceSet.AddDevice(id, parent); err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (d *Driver) Create(id, parent string) error {
 	return nil
 }
 
-func (d *Driver) Remove(id string) error {
+func (d *Driver) Remove(id, rw string) error {
 	if !d.DeviceSet.HasDevice(id) {
 		// Consider removing a non-existing device a no-op
 		// This is useful to be able to progress on container removal
@@ -104,7 +104,7 @@ func (d *Driver) Remove(id string) error {
 	return nil
 }
 
-func (d *Driver) Get(id, mountLabel string) (string, error) {
+func (d *Driver) Get(id, rw, mountLabel string) (string, error) {
 	mp := path.Join(d.home, "mnt", id)
 
 	// Create the target directories if they don't exist

@@ -16,6 +16,7 @@ type Config struct {
 	MemorySwap      int64  // Total memory usage (memory + swap); set `-1' to disable swap
 	CpuShares       int64  // CPU shares (relative weight vs. other containers)
 	Cpuset          string // Cpuset 0-2, 0,1
+	RwDir		    string // read write directory for the aufs storage backend
 	AttachStdin     bool
 	AttachStdout    bool
 	AttachStderr    bool
@@ -43,6 +44,7 @@ func ContainerConfigFromJob(job *engine.Job) *Config {
 		MemorySwap:      job.GetenvInt64("MemorySwap"),
 		CpuShares:       job.GetenvInt64("CpuShares"),
 		Cpuset:          job.Getenv("Cpuset"),
+		RwDir:           job.Getenv("RwDir"),
 		AttachStdin:     job.GetenvBool("AttachStdin"),
 		AttachStdout:    job.GetenvBool("AttachStdout"),
 		AttachStderr:    job.GetenvBool("AttachStderr"),

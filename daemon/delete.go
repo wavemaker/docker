@@ -155,12 +155,12 @@ func (daemon *Daemon) Destroy(container *Container) error {
 		log.Debugf("Unable to remove container from link graph: %s", err)
 	}
 
-	if err := daemon.driver.Remove(container.ID); err != nil {
+	if err := daemon.driver.Remove(container.ID, container.RwPath); err != nil {
 		return fmt.Errorf("Driver %s failed to remove root filesystem %s: %s", daemon.driver, container.ID, err)
 	}
 
 	initID := fmt.Sprintf("%s-init", container.ID)
-	if err := daemon.driver.Remove(initID); err != nil {
+	if err := daemon.driver.Remove(initID, ""); err != nil {
 		return fmt.Errorf("Driver %s failed to remove init filesystem %s: %s", daemon.driver, initID, err)
 	}
 
