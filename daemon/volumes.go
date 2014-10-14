@@ -229,7 +229,7 @@ func createVolumeHostPath(container *Container) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	hostPath, err := volumesDriver.Get(c.ID, "")
+	hostPath, err := volumesDriver.Get(c.ID, "", "")
 	if err != nil {
 		return hostPath, fmt.Errorf("Driver %s failed to get volume rootfs %s: %s", volumesDriver, c.ID, err)
 	}

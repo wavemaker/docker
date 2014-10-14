@@ -1696,6 +1696,7 @@ func (cli *DockerCli) CmdEvents(args ...string) error {
 
 func (cli *DockerCli) CmdExport(args ...string) error {
 	cmd := cli.Subcmd("export", "CONTAINER", "Export the contents of a filesystem as a tar archive to STDOUT")
+	rw := cmd.Bool([]string{"rw", "-readwrite"}, false, "Exports only the contents of the read write directory as a tar archive to STDOUT ")
 	if err := cmd.Parse(args); err != nil {
 		return nil
 	}
@@ -1705,7 +1706,12 @@ func (cli *DockerCli) CmdExport(args ...string) error {
 		return nil
 	}
 
-	if err := cli.stream("GET", "/containers/"+cmd.Arg(0)+"/export", nil, cli.out, nil); err != nil {
+	val := url.Values{}
+	if *rw {
+		val.Set("rw", "1")
+	}
+
+	if err := cli.stream("GET", "/containers/"+cmd.Arg(0)+"/export?"+val.Encode(), nil, cli.out, nil); err != nil {
 		return err
 	}
 	return nil

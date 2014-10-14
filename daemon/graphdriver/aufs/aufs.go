@@ -159,9 +159,9 @@ func (a Driver) Exists(id string) bool {
 }
 
 // Three folders are created for each id
-// mnt, layers, and diff
-func (a *Driver) Create(id, parent string) error {
-	if err := a.createDirsFor(id); err != nil {
+// mnt, layers, and diff or rw if rw not empty
+func (a *Driver) Create(id, rw, parent string) error {
+	if err := a.createDirsFor(id, rw); err != nil {
 		return err
 	}
 	// Write the layers metadata
@@ -189,10 +189,13 @@ func (a *Driver) Create(id, parent string) error {
 	return nil
 }
 
-func (a *Driver) createDirsFor(id string) error {
+func (a *Driver) createDirsFor(id, rw string) error {
+    rw, err := a.resolveRwPath(id, rw)
+    if err != nil {
+        return err
+    }
 	paths := []string{
 		"mnt",
-		"diff",
 	}
 
 	for _, p := range paths {
@@ -200,11 +203,15 @@ func (a *Driver) createDirsFor(id string) error {
 			return err
 		}
 	}
+
+	if err := os.MkdirAll(rw, 0755); err != nil {
+				return err
+	}
 	return nil
 }
 
 // Unmount and remove the dir information
-func (a *Driver) Remove(id string) error {
+func (a *Driver) Remove(id, rw string) error {
 	// Protect the a.active from concurrent access
 	a.Lock()
 	defer a.Unlock()
@@ -219,7 +226,10 @@ func (a *Driver) Remove(id string) error {
 	}
 	tmpDirs := []string{
 		"mnt",
-		"diff",
+	}
+	rw, err := a.resolveRwPath(id, rw)
+	if err != nil {
+		 return err
 	}
 
 	// Atomically remove each directory in turn by first moving it out of the
@@ -235,6 +245,13 @@ func (a *Driver) Remove(id string) error {
 		defer os.RemoveAll(tmpPath)
 	}
 
+	realPath := rw
+	tmpPath := fmt.Sprintf("%s-removing", rw)
+	if err := os.Rename(realPath, tmpPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	defer os.RemoveAll(tmpPath)
+
 	// Remove the layers file for the id
 	if err := os.Remove(path.Join(a.rootPath(), "layers", id)); err != nil && !os.IsNotExist(err) {
 		return err
@@ -244,7 +261,7 @@ func (a *Driver) Remove(id string) error {
 
 // Return the rootfs path for the id
 // This will mount the dir at it's given path
-func (a *Driver) Get(id, mountLabel string) (string, error) {
+func (a *Driver) Get(id, rw, mountLabel string) (string, error) {
 	ids, err := getParentIds(a.rootPath(), id)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -261,12 +278,15 @@ func (a *Driver) Get(id, mountLabel string) (string, error) {
 
 	// If a dir does not have a parent ( no layers )do not try to mount
 	// just return the diff path to the data
-	out := path.Join(a.rootPath(), "diff", id)
+	out, err := a.resolveRwPath(id, rw)
+	if err != nil {
+	    return "", err
+	}
 	if len(ids) > 0 {
 		out = path.Join(a.rootPath(), "mnt", id)
 
 		if count == 0 {
-			if err := a.mount(id, mountLabel); err != nil {
+			if err := a.mount(id, rw, mountLabel); err != nil {
 				return "", err
 			}
 		}
@@ -295,27 +315,46 @@ func (a *Driver) Put(id string) {
 }
 
 // Returns an archive of the contents for the id
-func (a *Driver) Diff(id string) (archive.Archive, error) {
-	return archive.TarWithOptions(path.Join(a.rootPath(), "diff", id), &archive.TarOptions{
+func (a *Driver) Diff(id, rw string) (archive.Archive, error) {
+
+    rw, err := a.resolveRwPath(id, rw)
+    if err != nil {
+        return nil, err
+    }
+	return archive.TarWithOptions(rw, &archive.TarOptions{
 		Compression: archive.Uncompressed,
 	})
 }
 
-func (a *Driver) ApplyDiff(id string, diff archive.ArchiveReader) error {
-	return archive.Untar(diff, path.Join(a.rootPath(), "diff", id), nil)
+func (a *Driver) ApplyDiff(id, rw string, diff archive.ArchiveReader) error {
+
+    rw, err := a.resolveRwPath(id, rw)
+    if err != nil {
+        return err
+    }
+	return archive.Untar(diff, rw, nil)
 }
 
 // Returns the size of the contents for the id
-func (a *Driver) DiffSize(id string) (int64, error) {
-	return utils.TreeSize(path.Join(a.rootPath(), "diff", id))
+func (a *Driver) DiffSize(id, rw string) (int64, error) {
+
+    rw, err := a.resolveRwPath(id, rw)
+    if err != nil {
+        return 0, err
+    }
+	return utils.TreeSize(rw)
 }
 
-func (a *Driver) Changes(id string) ([]archive.Change, error) {
+func (a *Driver) Changes(id, rw string) ([]archive.Change, error) {
 	layers, err := a.getParentLayerPaths(id)
 	if err != nil {
 		return nil, err
 	}
-	return archive.Changes(layers, path.Join(a.rootPath(), "diff", id))
+	rw, err = a.resolveRwPath(id, rw)
+	if err != nil {
+	    return nil, err
+	}
+	return archive.Changes(layers, rw)
 }
 
 func (a *Driver) getParentLayerPaths(id string) ([]string, error) {
@@ -330,21 +369,37 @@ func (a *Driver) getParentLayerPaths(id string) ([]string, error) {
 
 	// Get the diff paths for all the parent ids
 	for i, p := range parentIds {
-		layers[i] = path.Join(a.rootPath(), "diff", p)
+	    rw, err := a.resolveRwPath(p, "")
+		if err != nil {
+		    return nil, err
+		}
+		layers[i] = rw
 	}
 	return layers, nil
 }
 
-func (a *Driver) mount(id, mountLabel string) error {
+func (a *Driver) resolveRwPath(id, rw string) (string, error) {
+    // if no "rw" runconfig is given resolve to default path
+    var rwPath = rw
+    // TODO validate rw
+    if rwPath == "" {
+         rwPath = path.Join(a.rootPath(), "diff", id)
+    }
+    return rwPath, nil
+}
+
+func (a *Driver) mount(id, rw, mountLabel string) error {
 	// If the id is mounted or we get an error return
 	if mounted, err := a.mounted(id); err != nil || mounted {
 		return err
 	}
 
-	var (
-		target = path.Join(a.rootPath(), "mnt", id)
-		rw     = path.Join(a.rootPath(), "diff", id)
-	)
+    rw, err := a.resolveRwPath(id, rw)
+    if err != nil {
+        return err
+    }
+
+	var target = path.Join(a.rootPath(), "mnt", id)
 
 	layers, err := a.getParentLayerPaths(id)
 	if err != nil {

@@ -498,6 +498,12 @@ func (daemon *Daemon) generateHostname(id string, config *runconfig.Config) {
 	}
 }
 
+func (daemon *Daemon) getAufsRwPath(config *runconfig.Config) (string, error) {
+    // returns the RwPath for the aufs storage backend
+	var rwPath = config.RwDir
+	return rwPath, nil
+}
+
 func (daemon *Daemon) getEntrypointAndArgs(config *runconfig.Config) (string, []string) {
 	var (
 		entrypoint string
@@ -516,6 +522,7 @@ func (daemon *Daemon) getEntrypointAndArgs(config *runconfig.Config) (string, []
 func (daemon *Daemon) newContainer(name string, config *runconfig.Config, img *image.Image) (*Container, error) {
 	var (
 		id  string
+		rwPath string
 		err error
 	)
 	id, name, err = daemon.generateIdAndName(name)
@@ -524,6 +531,7 @@ func (daemon *Daemon) newContainer(name string, config *runconfig.Config, img *i
 	}
 
 	daemon.generateHostname(id, config)
+	rwPath, err = daemon.getAufsRwPath(config)
 	entrypoint, args := daemon.getEntrypointAndArgs(config)
 
 	container := &Container{
@@ -534,6 +542,7 @@ func (daemon *Daemon) newContainer(name string, config *runconfig.Config, img *i
 		Args:            args, //FIXME: de-duplicate from config
 		Config:          config,
 		hostConfig:      &runconfig.HostConfig{},
+		RwPath:          rwPath,
 		Image:           img.ID, // Always use the resolved image id
 		NetworkSettings: &NetworkSettings{},
 		Name:            name,
@@ -556,10 +565,10 @@ func (daemon *Daemon) createRootfs(container *Container, img *image.Image) error
 		return err
 	}
 	initID := fmt.Sprintf("%s-init", container.ID)
-	if err := daemon.driver.Create(initID, img.ID); err != nil {
+	if err := daemon.driver.Create(initID, "", img.ID); err != nil {
 		return err
 	}
-	initPath, err := daemon.driver.Get(initID, "")
+	initPath, err := daemon.driver.Get(initID, "", "")
 	if err != nil {
 		return err
 	}
@@ -569,7 +578,7 @@ func (daemon *Daemon) createRootfs(container *Container, img *image.Image) error
 		return err
 	}
 
-	if err := daemon.driver.Create(container.ID, initID); err != nil {
+	if err := daemon.driver.Create(container.ID, container.RwPath, initID); err != nil {
 		return err
 	}
 	return nil
@@ -905,7 +914,7 @@ func (daemon *Daemon) shutdown() error {
 }
 
 func (daemon *Daemon) Mount(container *Container) error {
-	dir, err := daemon.driver.Get(container.ID, container.GetMountLabel())
+	dir, err := daemon.driver.Get(container.ID, container.RwPath, container.GetMountLabel())
 	if err != nil {
 		return fmt.Errorf("Error getting container %s from driver %s: %s", container.ID, daemon.driver, err)
 	}
@@ -925,14 +934,14 @@ func (daemon *Daemon) Unmount(container *Container) error {
 
 func (daemon *Daemon) Changes(container *Container) ([]archive.Change, error) {
 	if differ, ok := daemon.driver.(graphdriver.Differ); ok {
-		return differ.Changes(container.ID)
+		return differ.Changes(container.ID, container.RwPath)
 	}
-	cDir, err := daemon.driver.Get(container.ID, "")
+	cDir, err := daemon.driver.Get(container.ID, container.RwPath, "")
 	if err != nil {
 		return nil, fmt.Errorf("Error getting container rootfs %s from driver %s: %s", container.ID, container.daemon.driver, err)
 	}
 	defer daemon.driver.Put(container.ID)
-	initDir, err := daemon.driver.Get(container.ID+"-init", "")
+	initDir, err := daemon.driver.Get(container.ID+"-init", "", "")
 	if err != nil {
 		return nil, fmt.Errorf("Error getting container init rootfs %s from driver %s: %s", container.ID, container.daemon.driver, err)
 	}
@@ -942,7 +951,7 @@ func (daemon *Daemon) Changes(container *Container) ([]archive.Change, error) {
 
 func (daemon *Daemon) Diff(container *Container) (archive.Archive, error) {
 	if differ, ok := daemon.driver.(graphdriver.Differ); ok {
-		return differ.Diff(container.ID)
+		return differ.Diff(container.ID, container.RwPath)
 	}
 
 	changes, err := daemon.Changes(container)
@@ -950,7 +959,7 @@ func (daemon *Daemon) Diff(container *Container) (archive.Archive, error) {
 		return nil, err
 	}
 
-	cDir, err := daemon.driver.Get(container.ID, "")
+	cDir, err := daemon.driver.Get(container.ID, container.RwPath, "")
 	if err != nil {
 		return nil, fmt.Errorf("Error getting container rootfs %s from driver %s: %s", container.ID, container.daemon.driver, err)
 	}

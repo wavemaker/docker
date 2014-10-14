@@ -22,10 +22,10 @@ type InitFunc func(root string, options []string) (Driver, error)
 type Driver interface {
 	String() string
 
-	Create(id, parent string) error
-	Remove(id string) error
+	Create(id, rw, parent string) error
+	Remove(id, rw string) error
 
-	Get(id, mountLabel string) (dir string, err error)
+	Get(id, rw, mountLabel string) (dir string, err error)
 	Put(id string)
 	Exists(id string) bool
 
@@ -35,10 +35,10 @@ type Driver interface {
 }
 
 type Differ interface {
-	Diff(id string) (archive.Archive, error)
-	Changes(id string) ([]archive.Change, error)
-	ApplyDiff(id string, diff archive.ArchiveReader) error
-	DiffSize(id string) (bytes int64, err error)
+	Diff(id, rw string) (archive.Archive, error)
+	Changes(id, rw string) ([]archive.Change, error)
+	ApplyDiff(id, rw string, diff archive.ArchiveReader) error
+	DiffSize(id, rw string) (bytes int64, err error)
 }
 
 var (

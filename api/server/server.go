@@ -200,8 +200,14 @@ func getContainersExport(eng *engine.Engine, version version.Version, w http.Res
 	if vars == nil {
 		return fmt.Errorf("Missing parameter")
 	}
+	if err := parseForm(r); err != nil {
+		return err
+	}
 	job := eng.Job("export", vars["name"])
 	job.Stdout.Add(w)
+	rwValue := r.Form.Get("rw")
+	log.Debugf("rw value is %s ", rwValue)
+	job.Setenv("readwrite", rwValue)
 	if err := job.Run(); err != nil {
 		return err
 	}

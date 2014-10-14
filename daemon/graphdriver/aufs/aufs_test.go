@@ -90,7 +90,7 @@ func TestCreateNewDir(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -99,7 +99,7 @@ func TestCreateNewDirStructure(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,11 +120,11 @@ func TestRemoveImage(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "",""); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := d.Remove("1"); err != nil {
+	if err := d.Remove("1", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -145,11 +145,11 @@ func TestGetWithoutParent(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	diffPath, err := d.Get("1", "")
+	diffPath, err := d.Get("1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestCleanupWithDir(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "",  ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,7 +185,7 @@ func TestMountedFalseResponse(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -204,14 +204,14 @@ func TestMountedTrueReponse(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	defer d.Cleanup()
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Create("2", "1"); err != nil {
+	if err := d.Create("2", "", "1"); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := d.Get("2", "")
+	_, err := d.Get("2", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,10 +230,10 @@ func TestMountWithParent(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Create("2", "1"); err != nil {
+	if err := d.Create("2", "", "1"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -243,7 +243,7 @@ func TestMountWithParent(t *testing.T) {
 		}
 	}()
 
-	mntPath, err := d.Get("2", "")
+	mntPath, err := d.Get("2", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,10 +261,10 @@ func TestRemoveMountedDir(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Create("2", "1"); err != nil {
+	if err := d.Create("2", "", "1"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -274,7 +274,7 @@ func TestRemoveMountedDir(t *testing.T) {
 		}
 	}()
 
-	mntPath, err := d.Get("2", "")
+	mntPath, err := d.Get("2", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestRemoveMountedDir(t *testing.T) {
 		t.Fatalf("Dir id 2 should be mounted")
 	}
 
-	if err := d.Remove("2"); err != nil {
+	if err := d.Remove("2", ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -300,7 +300,7 @@ func TestCreateWithInvalidParent(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", "docker"); err == nil {
+	if err := d.Create("1", "", "docker"); err == nil {
 		t.Fatalf("Error should not be nil with parent does not exist")
 	}
 }
@@ -309,11 +309,11 @@ func TestGetDiff(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	diffPath, err := d.Get("1", "")
+	diffPath, err := d.Get("1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestGetDiff(t *testing.T) {
 	}
 	f.Close()
 
-	a, err := d.Diff("1")
+	a, err := d.Diff("1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,10 +343,10 @@ func TestChanges(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Create("2", "1"); err != nil {
+	if err := d.Create("2", "", "1"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -356,7 +356,7 @@ func TestChanges(t *testing.T) {
 		}
 	}()
 
-	mntPoint, err := d.Get("2", "")
+	mntPoint, err := d.Get("2", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +374,7 @@ func TestChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changes, err := d.Changes("2")
+	changes, err := d.Changes("2", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,10 +392,10 @@ func TestChanges(t *testing.T) {
 		t.Fatalf("Change kind should be ChangeAdd got %s", change.Kind)
 	}
 
-	if err := d.Create("3", "2"); err != nil {
+	if err := d.Create("3", "", "2"); err != nil {
 		t.Fatal(err)
 	}
-	mntPoint, err = d.Get("3", "")
+	mntPoint, err = d.Get("3",  "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +413,7 @@ func TestChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changes, err = d.Changes("3")
+	changes, err = d.Changes("3", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,11 +437,11 @@ func TestDiffSize(t *testing.T) {
 	d := newDriver(t)
 	defer os.RemoveAll(tmp)
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	diffPath, err := d.Get("1", "")
+	diffPath, err := d.Get("1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +465,7 @@ func TestDiffSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	diffSize, err := d.DiffSize("1")
+	diffSize, err := d.DiffSize("1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,11 +479,11 @@ func TestChildDiffSize(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	defer d.Cleanup()
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	diffPath, err := d.Get("1", "")
+	diffPath, err := d.Get("1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,7 +507,7 @@ func TestChildDiffSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	diffSize, err := d.DiffSize("1")
+	diffSize, err := d.DiffSize("1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -515,11 +515,11 @@ func TestChildDiffSize(t *testing.T) {
 		t.Fatalf("Expected size to be %d got %d", size, diffSize)
 	}
 
-	if err := d.Create("2", "1"); err != nil {
+	if err := d.Create("2", "", "1"); err != nil {
 		t.Fatal(err)
 	}
 
-	diffSize, err = d.DiffSize("2")
+	diffSize, err = d.DiffSize("2", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -534,7 +534,7 @@ func TestExists(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	defer d.Cleanup()
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -552,7 +552,7 @@ func TestStatus(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	defer d.Cleanup()
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -581,11 +581,11 @@ func TestApplyDiff(t *testing.T) {
 	defer os.RemoveAll(tmp)
 	defer d.Cleanup()
 
-	if err := d.Create("1", ""); err != nil {
+	if err := d.Create("1", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	diffPath, err := d.Get("1", "")
+	diffPath, err := d.Get("1", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -602,25 +602,25 @@ func TestApplyDiff(t *testing.T) {
 	}
 	f.Close()
 
-	diff, err := d.Diff("1")
+	diff, err := d.Diff("1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := d.Create("2", ""); err != nil {
+	if err := d.Create("2", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Create("3", "2"); err != nil {
+	if err := d.Create("3", "", "2"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := d.ApplyDiff("3", diff); err != nil {
+	if err := d.ApplyDiff("3", "", diff); err != nil {
 		t.Fatal(err)
 	}
 
 	// Ensure that the file is in the mount point for id 3
 
-	mountPoint, err := d.Get("3", "")
+	mountPoint, err := d.Get("3", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -656,11 +656,11 @@ func TestMountMoreThan42Layers(t *testing.T) {
 		}
 		current = hash(current)
 
-		if err := d.Create(current, parent); err != nil {
+		if err := d.Create(current,  "",  parent); err != nil {
 			t.Logf("Current layer %d", i)
 			t.Fatal(err)
 		}
-		point, err := d.Get(current, "")
+		point, err := d.Get(current, "", "")
 		if err != nil {
 			t.Logf("Current layer %d", i)
 			t.Fatal(err)
@@ -683,7 +683,7 @@ func TestMountMoreThan42Layers(t *testing.T) {
 	}
 
 	// Perform the actual mount for the top most image
-	point, err := d.Get(last, "")
+	point, err := d.Get(last, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

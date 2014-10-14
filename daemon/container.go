@@ -66,6 +66,7 @@ type Container struct {
 	Name           string
 	Driver         string
 	ExecDriver     string
+	RwPath         string
 
 	command   *execdriver.Command
 	stdout    *broadcastwriter.BroadcastWriter
@@ -666,6 +667,24 @@ func (container *Container) Export() (archive.Archive, error) {
 		nil
 }
 
+func (container *Container) ExportRW() (archive.Archive, error) {
+	if err := container.Mount(); err != nil {
+		return nil, err
+	}
+
+	archive, err := archive.Tar(container.RwPath, archive.Uncompressed)
+	if err != nil {
+		container.Unmount()
+		return nil, err
+	}
+	return utils.NewReadCloserWrapper(archive, func() error {
+			err := archive.Close()
+			container.Unmount()
+			return err
+		}),
+		nil
+}
+
 func (container *Container) Mount() error {
 	return container.daemon.Mount(container)
 }
@@ -735,7 +754,7 @@ func (container *Container) GetSize() (int64, int64) {
 	defer container.Unmount()
 
 	if differ, ok := container.daemon.driver.(graphdriver.Differ); ok {
-		sizeRw, err = differ.DiffSize(container.ID)
+		sizeRw, err = differ.DiffSize(container.ID, container.RwPath)
 		if err != nil {
 			log.Errorf("Warning: driver %s couldn't return diff size of container %s: %s", driver, container.ID, err)
 			// FIXME: GetSize should return an error. Not changing it now in case
