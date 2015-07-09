@@ -230,6 +230,7 @@ func (daemon *Daemon) register(container *Container, updateSuffixarray bool) err
 		if err := container.Unmount(); err != nil {
 			logrus.Debugf("unmount error %s", err)
 		}
+
 		if err := container.ToDisk(); err != nil {
 			logrus.Debugf("saving stopped state to disk %s", err)
 		}
@@ -532,6 +533,7 @@ func (daemon *Daemon) newContainer(name string, config *runconfig.Config, imgID 
 	base.Name = name
 	base.Driver = daemon.driver.String()
 	base.ExecDriver = daemon.execDriver.Name()
+	base.RwPath = config.RwPath
 
 	container := &Container{
 		CommonContainer: base,
@@ -546,6 +548,11 @@ func (daemon *Daemon) createRootfs(container *Container) error {
 	if err := os.Mkdir(container.root, 0700); err != nil {
 		return err
 	}
+
+	if err := container.WriteRwToDisk(); err != nil {
+		logrus.Debugf("Error occured while writing rw.json %s", err)
+	}
+
 	initID := fmt.Sprintf("%s-init", container.ID)
 	if err := daemon.driver.Create(initID, container.ImageID); err != nil {
 		return err

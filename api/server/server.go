@@ -344,7 +344,6 @@ func (s *Server) getContainersExport(version version.Version, w http.ResponseWri
 	if vars == nil {
 		return fmt.Errorf("Missing parameter")
 	}
-
 	return s.daemon.ContainerExport(vars["name"], w)
 }
 

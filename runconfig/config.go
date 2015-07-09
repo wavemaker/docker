@@ -110,6 +110,7 @@ type Config struct {
 	Hostname        string
 	Domainname      string
 	User            string
+	RwPath          string // read write directory for the aufs storage backend
 	AttachStdin     bool
 	AttachStdout    bool
 	AttachStderr    bool

@@ -73,6 +73,7 @@ type CommonContainer struct {
 	MountLabel, ProcessLabel string
 	RestartCount             int
 	UpdateDns                bool
+	RwPath                   string
 
 	MountPoints map[string]*mountPoint
 	Volumes     map[string]string // Deprecated since 1.7, kept for backwards compatibility
@@ -136,6 +137,29 @@ func (container *Container) toDisk() error {
 func (container *Container) ToDisk() error {
 	container.Lock()
 	err := container.toDisk()
+	container.Unlock()
+	return err
+}
+
+func (container *Container) WriteRwToDisk() error {
+	container.Lock()
+	rw := map[string]string{
+		"RwPath": container.RwPath,
+	}
+
+	data, err := json.Marshal(rw)
+	if err != nil {
+		return err
+	}
+
+	pth, err := container.GetRootResourcePath("rw.json")
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(pth, data, 0666); err != nil {
+		return err
+	}
 	container.Unlock()
 	return err
 }

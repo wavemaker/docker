@@ -4,13 +4,13 @@ aufs driver directory structure
 
 .
 ├── layers // Metadata of layers
-│   ├── 1
-│   ├── 2
-│   └── 3
+│   ├── 1
+│   ├── 2
+│   └── 3
 ├── diff  // Content of the layer
-│   ├── 1  // Contains layers that need to be mounted for the id
-│   ├── 2
-│   └── 3
+│   ├── 1  // Contains layers that need to be mounted for the id
+│   ├── 2
+│   └── 3
 └── mnt    // Mount points for the rw layers to be mounted
     ├── 1
     ├── 2
@@ -22,6 +22,7 @@ package aufs
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -59,8 +60,10 @@ func init() {
 
 type Driver struct {
 	root       string
+	dockerRoot string
 	sync.Mutex // Protects concurrent modification to active
 	active     map[string]int
+	rwMap      map[string]string
 }
 
 // New returns a new AUFS driver.
@@ -92,9 +95,13 @@ func Init(root string, options []string) (graphdriver.Driver, error) {
 		"layers",
 	}
 
+	dockerRoot := strings.Trim(root, "aufs")
+
 	a := &Driver{
-		root:   root,
-		active: make(map[string]int),
+		root:       root,
+		dockerRoot: dockerRoot,
+		active:     make(map[string]int),
+		rwMap:      make(map[string]string),
 	}
 
 	// Create the root aufs driver dir and return
@@ -203,13 +210,21 @@ func (a *Driver) Create(id, parent string) error {
 func (a *Driver) createDirsFor(id string) error {
 	paths := []string{
 		"mnt",
-		"diff",
 	}
 
 	for _, p := range paths {
 		if err := os.MkdirAll(path.Join(a.rootPath(), p, id), 0755); err != nil {
 			return err
 		}
+	}
+
+	rw, err := a.getContainerRwPath(id)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(rw, 0755); err != nil {
+		return err
 	}
 	return nil
 }
@@ -230,7 +245,6 @@ func (a *Driver) Remove(id string) error {
 	}
 	tmpDirs := []string{
 		"mnt",
-		"diff",
 	}
 
 	// Atomically remove each directory in turn by first moving it out of the
@@ -245,6 +259,20 @@ func (a *Driver) Remove(id string) error {
 		}
 		defer os.RemoveAll(tmpPath)
 	}
+
+	rw, err := a.getContainerRwPath(id)
+	if err != nil {
+		return err
+	}
+	realPath := rw
+	tmpPath := fmt.Sprintf("%s-removing", rw)
+	if err := os.Rename(realPath, tmpPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	defer os.RemoveAll(tmpPath)
+
+	// Remove rw from Map.
+	delete(a.rwMap, id)
 
 	// Remove the layers file for the id
 	if err := os.Remove(path.Join(a.rootPath(), "layers", id)); err != nil && !os.IsNotExist(err) {
@@ -272,7 +300,10 @@ func (a *Driver) Get(id, mountLabel string) (string, error) {
 
 	// If a dir does not have a parent ( no layers )do not try to mount
 	// just return the diff path to the data
-	out := path.Join(a.rootPath(), "diff", id)
+	out, err := a.getContainerRwPath(id)
+	if err != nil {
+		return "", err
+	}
 	if len(ids) > 0 {
 		out = path.Join(a.rootPath(), "mnt", id)
 
@@ -309,23 +340,35 @@ func (a *Driver) Put(id string) error {
 // Diff produces an archive of the changes between the specified
 // layer and its parent layer which may be "".
 func (a *Driver) Diff(id, parent string) (archive.Archive, error) {
+	rw, err := a.getContainerRwPath(id)
+	if err != nil {
+		return nil, err
+	}
 	// AUFS doesn't need the parent layer to produce a diff.
-	return archive.TarWithOptions(path.Join(a.rootPath(), "diff", id), &archive.TarOptions{
+	return archive.TarWithOptions(rw, &archive.TarOptions{
 		Compression:     archive.Uncompressed,
 		ExcludePatterns: []string{".wh..wh.*"},
 	})
 }
 
 func (a *Driver) applyDiff(id string, diff archive.ArchiveReader) error {
-	return chrootarchive.Untar(diff, path.Join(a.rootPath(), "diff", id), nil)
+	rw, err := a.getContainerRwPath(id)
+	if err != nil {
+		return err
+	}
+	return chrootarchive.Untar(diff, rw, nil)
 }
 
 // DiffSize calculates the changes between the specified id
 // and its parent and returns the size in bytes of the changes
 // relative to its base filesystem directory.
 func (a *Driver) DiffSize(id, parent string) (size int64, err error) {
+	rw, err := a.getContainerRwPath(id)
+	if err != nil {
+		return 0, err
+	}
 	// AUFS doesn't need the parent layer to calculate the diff size.
-	return directory.Size(path.Join(a.rootPath(), "diff", id))
+	return directory.Size(rw)
 }
 
 // ApplyDiff extracts the changeset from the given diff into the
@@ -346,10 +389,12 @@ func (a *Driver) Changes(id, parent string) ([]archive.Change, error) {
 	// AUFS doesn't have snapshots, so we need to get changes from all parent
 	// layers.
 	layers, err := a.getParentLayerPaths(id)
+	rw, err := a.getContainerRwPath(id)
 	if err != nil {
 		return nil, err
 	}
-	return archive.Changes(layers, path.Join(a.rootPath(), "diff", id))
+
+	return archive.Changes(layers, rw)
 }
 
 func (a *Driver) getParentLayerPaths(id string) ([]string, error) {
@@ -371,11 +416,12 @@ func (a *Driver) mount(id, mountLabel string) error {
 	if mounted, err := a.mounted(id); err != nil || mounted {
 		return err
 	}
+	rw, err := a.getContainerRwPath(id)
+	if err != nil {
+		return err
+	}
 
-	var (
-		target = path.Join(a.rootPath(), "mnt", id)
-		rw     = path.Join(a.rootPath(), "diff", id)
-	)
+	var target = path.Join(a.rootPath(), "mnt", id)
 
 	layers, err := a.getParentLayerPaths(id)
 	if err != nil {
@@ -502,4 +548,39 @@ func useDirperm() bool {
 		}
 	})
 	return enableDirperm
+}
+
+func (a *Driver) getContainerRwPath(id string) (string, error) {
+	if val, ok := a.rwMap[id]; ok {
+		return val, nil
+	} else {
+		var rwPath = ""
+		if _, err := os.Stat(path.Join(a.dockerRoot, "containers", id)); os.IsNotExist(err) {
+			rwPath = path.Join(a.rootPath(), "diff", id)
+		} else {
+			data, err := ioutil.ReadFile(path.Join(a.dockerRoot, "containers", id, "rw.json"))
+			if err != nil {
+				logrus.Errorf("Error while creating Root fs, rw.json does not exists file, %v", err)
+				return "", err
+			}
+
+			var parsedJsonFile map[string]interface{}
+			err = json.Unmarshal(data, &parsedJsonFile)
+			if err != nil {
+				logrus.Errorf("Error Marshalling json fron rw.json file, %v", err)
+				return "", err
+			}
+
+			if rw, ok := parsedJsonFile["RwPath"]; ok {
+				rwPath = rw.(string)
+				if rwPath == "" {
+					rwPath = path.Join(a.rootPath(), "diff", id)
+				}
+			} else {
+				rwPath = path.Join(a.rootPath(), "diff", id)
+			}
+		}
+		a.rwMap[id] = rwPath
+		return rwPath, nil
+	}
 }
